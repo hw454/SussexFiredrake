@@ -1,0 +1,15 @@
+# Plot files
+*.jpg
+*.png
+*.avi
+# Mesh Files
+*.npy
+*.xdmf
+*.pvd
+*.h5
+# Autosave files
+*pycache*
+*checkpoint*
+
+#Virutal Env details
+firedrake/*
