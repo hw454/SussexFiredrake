@@ -7,6 +7,8 @@
 *.xdmf
 *.pvd
 *.h5
+*.log
+*.csv
 # Autosave files
 *pycache*
 *checkpoint*
