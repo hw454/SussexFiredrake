@@ -9,6 +9,7 @@
 *.h5
 *.log
 *.csv
+*.vtu
 # Autosave files
 *pycache*
 *checkpoint*
