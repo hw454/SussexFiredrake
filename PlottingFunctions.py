@@ -3,17 +3,13 @@
 from firedrake import *
 import cv2
 import os
+import sys
 import FileFuncs as ff
 # Packages for plotting lines and heatmaps
 import matplotlib.pyplot as plt
 from mpi4py import MPI
-from paraview.simple import *
-from firedrake import io
 
 import SpatialVariable as SV
-
-global DEBUG
-DEBUG=True
 
 def plot_animation(nt,varname='var',path='',ResultsFolder='',tp=1):
     ''' Plotting sequence of heatmaps for a variable `var' and create animation.
@@ -208,12 +204,13 @@ def plotting_residuals(resvars,resnames,xvar,xvarname,path='',PlotsFolder=''):
     return 1
 
 def main(path,filename,test=0,tp=1,ind=0):
-    ResultsFolder='Plots'
-    MeshFolder  ='Mesh'
-    if test==1:
-        ResultsFolder='DiffusionOnly/'+ResultsFolder
-        MeshFolder   ='DiffusionOnly/'+MeshFolder
+    ResultsFolder='/Plots'
+    MeshFolder  ='/Mesh'
     dirlist=(ResultsFolder,MeshFolder)
+    dlistout=list()
+    for d in dirlist:
+        dlistout.append(ff.teststr(test)+d)
+    ResultsFolder,MeshFolder=dlistout
     etaname     ='eta'
     thetaname   ='theta'
     tname       ='tvec'
@@ -243,8 +240,10 @@ def main(path,filename,test=0,tp=1,ind=0):
 
 
 if __name__=='__main__':
-    path='~/Code/SussexPython/SussexFenics/'
-    sheetname    ='ParameterSets.csv'
+    global DEBUG
+    DEBUG=True
+    path=os.path.abspath(os.getcwd())
+    sheetname    ='/ParameterSets.csv'
     test=0
     tp  =0.5
     ind =0
