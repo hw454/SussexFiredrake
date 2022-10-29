@@ -169,7 +169,7 @@ def Simulations(filename,path,MeshFolder,ResultsFolder,varnames,test=0,ind=0):
     :returns: nothing computations are saved
     '''
     mesh_par_dict,pdes_par_dict=ff.read_inputs(path,filename,ind)
-    etaname,thetaname,tname,domname,etaresname,theresname,etadivname,thedivname=varnames
+    etaname,thetaname,tname,domname,etaresname,theresname,etadivname,thedivname,vargsname=varnames
     # nx,ny are number of elements on x and y axis
     # xm, ym are maximum x and y values
     # x0,y0 are minimum x and y values
@@ -249,7 +249,7 @@ def Simulations(filename,path,MeshFolder,ResultsFolder,varnames,test=0,ind=0):
     the1_cls.set_char_key('t')
 
     Outfiles=(etaout,theout)
-    vars_cls, eNorm, tNorm,eDiv,tDiv,tvec=one_step_loop(vars_cls,Lvec,avec,pdes_par_dict,tvec,path,ResultsFolder,Outfiles)
+    vars_cls, eNorm, tNorm,eDiv,tDiv,tvec,vargs=one_step_loop(vars_cls,Lvec,avec,pdes_par_dict,tvec,path,ResultsFolder,Outfiles)
     eta2_cls,the2_cls=vars_cls
     #plotting.plot(eta1)
     # Save the outputs from the simulation
@@ -261,8 +261,9 @@ def Simulations(filename,path,MeshFolder,ResultsFolder,varnames,test=0,ind=0):
     ff.save_var(tNorm,theresname,path,MeshFolder)
     ff.save_var(eDiv,etadivname,path,MeshFolder)
     ff.save_var(tDiv,thedivname,path,MeshFolder)
+    ff.save_var(vargs,vargsname,path,MeshFolder)
     print('Results saved in',MeshFolder)
-    return eta2_cls,the2_cls,parstr,pdes_par_dict
+    return eta2_cls,the2_cls,parstr,pdes_par_dict,vargs
     
 def first_step(vars_cls,consts_dict,test=1):
     '''Define variational problem ---------------------------------------  
@@ -339,6 +340,10 @@ def one_step_loop(vars_cls,Lvec,avec,consts_dict,tvec,path,MeshFolder="",Outfile
     rescount=0
     res_fac=20
     tstep=0
+    vmin0=min(var00_cls.var_vals())
+    vmax0=max(var00_cls.var_vals())
+    vmin1=min(var10_cls.var_vals())
+    vmax1=max(var10_cls.var_vals())
     for tstep,t in enumerate(tvec):
         if check_out or np.isnan(res_fac):
              # Nans in output solution blown up
@@ -376,10 +381,19 @@ def one_step_loop(vars_cls,Lvec,avec,consts_dict,tvec,path,MeshFolder="",Outfile
         #DEBUGSTARTtime_
         if DEBUG:
             print('solved for tstep',tstep)
+            #print('Var history',var00_cls.var_hist)
         #DEBUGEND
         # Reassign the variables before the next step
         var00_cls.update_var(var01_cls)
         var10_cls.update_var(var11_cls)
+        if min(var00_cls.var_vals())<vmin0:
+            vmin0=min(var00_cls.var_vals())
+        if max(var00_cls.var_vals())>vmax0:
+            vmax0=max(var00_cls.var_vals())
+        if min(var10_cls.var_vals())<vmin1:
+            vmin1=min(var10_cls.var_vals())
+        if max(var10_cls.var_vals())>vmax1:
+            vmax1=max(var10_cls.var_vals())
         # RESET the solution variables
         var01_cls.reset_var()
         var11_cls.reset_var()
@@ -393,45 +407,34 @@ def one_step_loop(vars_cls,Lvec,avec,consts_dict,tvec,path,MeshFolder="",Outfile
     Div0=np.resize(Div0,tstep-1)
     Div1=np.resize(Div1,tstep-1)    
     tvec=np.arange(0,t,dt)
-    vars_cls=(var01_cls,var11_cls)
-    return vars_cls, Norm0, Norm1,Div0,Div1,tvec
+    vars_cls=(var00_cls,var10_cls)
+    vargs=(vmin0,vmax0,vmin1,vmax1)
+    return vars_cls, Norm0, Norm1,Div0,Div1,tvec,vargs
 
-def Plotting(var_cls,path,PlotFoldername,parstr,consts_dict):
+def Plotting(var_cls,nt,path,PlotFoldername,parstr,consts_dict,vargs):
     ''' Plot an animation of a tricontour plot for the variable `var_cls`.
     Save plot at path+PlotFoldername+var_cls.name+'.mp4'
     :param var_cls: `SpatialVariable` object with results in.
     :param path: Location for the output
     :param PlotFoldername: directory for the results.
     :param consts_dict: dictionary of the parameters.'''
-    dt=consts_dict['dt']
-    T=consts_dict['T']
-    nt=int(T/dt)
     r_mesh=var_cls.mesh
     var_list=var_cls.var_hist
     var_init=var_cls.init_var
-    ns=nt
-    fn_plotter=FunctionPlotter(r_mesh,num_sample_points=ns)
+    vmin0,vmax0=vargs
     fig, axes = plt.subplots()
     axes.set_aspect('equal')
-    colors = tripcolor(var_init, num_sample_points=ns, axes=axes,cmap='inferno')
+    colors = tripcolor(var_init, num_sample_points=1, axes=axes,cmap='inferno',vmin=vmin0,vmax=vmax0)
     fig.colorbar(colors)
-    fig.savefig(path+PlotFoldername+var_cls.name+'00.jpg')
-    #interval = 1e3 * dt
-    #def animate(q):
-    #    colors.set_array(fn_plotter(q))
-    #animation = FuncAnimation(fig, animate, frames=var_list, interval=interval)
-    #savename=path+PlotFoldername+var_cls.name+'.mp4'
-    #try:
-    #    animation.save(savename, writer="ffmpeg")
-    #except:
-    #    print("Failed to write movie! Try installing `ffmpeg`.")
-    print(var_cls.var_hist)
-    for tstep in range(nt):
+    fig.savefig(path+PlotFoldername+parstr+'/'+var_cls.name+'000.jpg')
+    fig.clear()
+    for tstep in range(nt-1):
         fig, axes = plt.subplots()
         axes.set_aspect('equal')
-        colors = tripcolor(var_cls.var_hist[tstep], num_sample_points=ns, axes=axes,cmap='inferno')
+        colors = tripcolor(var_cls.var_hist[tstep], num_sample_points=1, axes=axes,cmap='inferno',vmin=vmin0,vmax=vmax0)
         fig.colorbar(colors)
-        fig.savefig(path+PlotFoldername+var_cls.name+'%.3d.jpg'%tstep)
+        fig.savefig(path+PlotFoldername+parstr+'/'+var_cls.name+'%.3d.jpg'%tstep)
+        fig.clear()
     return
 
 def main(path,filename,simon=0,test=0,ind=0):
@@ -459,15 +462,18 @@ def main(path,filename,simon=0,test=0,ind=0):
     theresname  ='the_res'
     etadivname  ='eta_div'
     thedivname  ='the_div'
-    varnames=[etaname,thetaname,tname,domname,etaresname,theresname,etadivname,thedivname]
-    if simon: eta_cls,the_cls,parstr,consts_dict=Simulations(filename,path,MeshFolder,ResultsFolder,varnames,test,ind)
+    vargsname   ='vargs'
+    varnames=[etaname,thetaname,tname,domname,etaresname,theresname,etadivname,thedivname,vargsname]
+    if simon: eta_cls,the_cls,parstr,consts_dict,vargs=Simulations(filename,path,MeshFolder,ResultsFolder,varnames,test,ind)
     print('Simulations completed')
     varlist=(eta_cls,the_cls)
-    #for var in varlist:
-    #    Plotting(var,path,ResultsFolder,parstr,consts_dict)
+    tvec=ff.load_file(path,MeshFolder+parstr,tname)
+    nt=len(tvec)
+    varr=((vargs[0],vargs[1]),(vargs[2],vargs[3]))
+    for i,var in enumerate(varlist):
+        Plotting(var,nt,path,ResultsFolder,parstr,consts_dict,varr[i])
     #MeshFolder=MeshFolder+parstring
     #ResultsFolder=ResultsFolder+parstring
-    tvec=ff.load_file(path,MeshFolder+parstr,tname)
     varlist=(etaresname,theresname,etadivname,thedivname)
     for vname in varlist:
         var=ff.load_file(path,MeshFolder+parstr,vname)
@@ -488,7 +494,7 @@ if __name__=='__main__':
     global DEBUG,macheps
     DEBUG=True
     macheps=sys.float_info.epsilon
-    path=os.path.abspath(os.getcwd())
+    path='/home/hayley/Code/SussexPython/SussexFiredrake'
     filename='/ParameterSets.csv'
     simon=1
     test=(0,1,2)
