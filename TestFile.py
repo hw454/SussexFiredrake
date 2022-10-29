@@ -28,3 +28,21 @@ axes.set_aspect("equal")
 fig.colorbar(contours)
 fig.show()
 fig.savefig('TestPlot.jpg')
+
+t = 0.0
+step = 0
+dt=0.1
+output_freq = 20
+T=300
+qs=[]
+tmpvar=TrialFunction(V)
+v=TestFunction(V)
+a=tmpvar*v*dx+inner(grad(tmpvar),grad(v))*dx
+L=(f+3)*v*dx
+while t < T - 0.5*dt:
+    solve(a==L,f)
+    t+=dt
+    if step % output_freq == 0:
+        qs.append(f.copy(deepcopy=True))
+        print("t=", t)
+print(qs)
