@@ -9,42 +9,7 @@ import FileFuncs as ff
 import matplotlib.pyplot as plt
 from mpi4py import MPI
 
-import SpatialVariable as SV
-
-def plot_animation(nt,varname='var',path='',ResultsFolder='',tp=1):
-    ''' Plotting sequence of heatmaps for a variable `var' and create animation.
-    :param domain: numpy array containing the measurements for the envrionment [xmin,ymin,xmax,ymax]
-    :param var: numpy array containing variable values
-    :param tvec: numpy array containing the time values which correspond with the var results.
-    :param varname: string corresponding to the name of var
-    :param ResultsFolder: folder where the plots should be save. default \'\'
-    :param tp: Time pause for video default 1
-    '''
-    ff.check_folder(path,ResultsFolder)
-    filename=path+ResultsFolder+'/'+varname
-    img_array=[]
-    for j in range(nt):
-        if j%10==0:
-            filesave=filename+ff.numfix(j)+'.png'
-            #tstring=varname+'(x,y), time {:.2f}'.format(tstep)
-            #sns.heatmap(var[:,:,j],vmin=varmin,vmax=varmax).set(title=tstring)
-            #im = plt.imshow(var[:,:,j],vmin=varmin,vmax=varmax)
-            #im.title(tstring)
-            #plt.savefig(filesave)
-            #plt.close('all')
-            img = cv2.imread(filesave)
-            if isinstance(img,type(None)):
-                pass
-            else:
-                height, width, layers = img.shape
-                size = (width,height)
-                img_array.append(img)
-    out = cv2.VideoWriter(filename+'.avi',cv2.VideoWriter_fourcc(*'DIVX'), tp, size)
-    for j in range(len(img_array)):
-        out.write(img_array[j])
-    out.release()
-    del img_array
-    return
+import pandas as pd
 
 def line_plot(f,t,varname,tname,path='',ResultsFolder=''):
     ''' Plot f as a function of t. label x axis with `tname` 
@@ -55,55 +20,21 @@ def line_plot(f,t,varname,tname,path='',ResultsFolder=''):
     elif len(f)>len(t):
         f=f[-len(t)-1:-1]
     plt.figure()
-    plt.plot(t,f)
+    plt.plot(t,f,'*',label=varname)
     plt.xlabel(tname)
     plt.ylabel(varname)
     plt.savefig(path+ResultsFolder+'/'+varname+'_vs_'+tname+'.png')
     plt.close()
     return
 
-def plot_function(t, varname,j=-1,path='',MeshFolder='/',ResultsFolder='/'):
-    """
-    Create a figure of the concentration uh warped visualized in 3D at timet step t.
-    :param t: time corresponding to the snapshot in the plot
-    :param uh_cls: Spatial variable
-    :param j: The count of the time step. 
-    :param path: location for the Folder to store results.
-    :param ResultFolder: The folder for the plots to be stored in
-    
-    uh_cls is a class object with attributes
-        - uh_cls.function_space: The function space V
-        - uh_cls.var: dolfinx function on the function space(V)
-        - uh_cls.mesh: dolfinx mesh used to create the function space.
-        - uh_cls.name: The string name for the variable. 
-        - s.char_key: Character indicating the category of variable.
-        
-    Plots are saved in: path+ResultsFolder+uh_cls.name+numfix(j)+'.png'"""
-    if j==-1:
-        j=t
-    ff.check_folder(path,ResultsFolder)
-    filename=path+MeshFolder+'/'+varname
-    # Warp mesh by point values
-    fileload=filename+ff.numfix(j)+'.pvd'
-    plotsave=path+ResultsFolder+'/'+varname+ff.numfix(j)+'.pvd'
-    pvd=PVDReader(FileName=fileload)
-    tstring=varname+'(x,y), time {:.2f}'.format(t)
-
-    if DEBUG:
-        print('Plot saved at',plotsave)
-    return
-
-
 def plot_var_videos(xvar,varnames,path='',MeshFolder='/',ResultsFolder='',tp=1):
-    '''Plots output variables from simulation and errors over time
+    '''PCombine plots of variable into video
     :param var 3: numpy variable for x-axos(or similar dimensional variable)
     :param varnames: list of names corresponding to variables to plot
     :param ResultsFolder: string indicating the folder path where the plots should be save
     :param tp: Time pause for video default 1
     '''
     for vname in varnames:
-        for t,j in enumerate(xvar):
-            plot_function(t,j,vname,path,MeshFolder,ResultsFolder)
         create_video(vname,path=path,PlotsFolder=ResultsFolder,nt=len(xvar),tp=tp)
     return
 
@@ -129,7 +60,7 @@ def create_video(varname,path='',PlotsFolder='',nt=0,tp=1):
     else:
         img_array,nt=create_img_array(path,PlotsFolder,varname,nt)
         img=img_array[-1]
-        height, width, layers = img.shape
+        height, width, _ = img.shape
         size = (width,height)
         vidname=path+PlotsFolder+'/'+varname+'00.avi'
         fourcc_avi=cv2.VideoWriter_fourcc(*'DIVX')
@@ -165,21 +96,22 @@ def create_img_array(path,PlotsFolder,varname,nt=0):
     :returns: img_array,nt
     '''
     print('Making img_array')
-    filename=path+PlotsFolder+'/'+varname
+    filename=PlotsFolder+'/'+varname
     img_array=[]
     if nt==0:
         # While loop with if exists exit condition
-        filesave=path+filename+ff.numfix(0)+'.png'
+        filesave=path+filename+ff.numfix(0)+'.jpg'
         while os.path.exists(filesave):
             nt=j
             img = cv2.imread(filesave)
             img_array.append(img)
             j+=1
-            filesave=filename+ff.numfix(j)+'.png'
+            filesave=filename+ff.numfix(j)+'.jpg'
     else:
         # Create img_array
         for j in range (nt):
-            filesave=path+filename+ff.numfix(j)+'.png'
+            filesave=path+filename+ff.numfix(j)+'.jpg'
+            print(filesave)
             if not os.path.exists(filesave):
                 nt=j
                 break
@@ -188,24 +120,39 @@ def create_img_array(path,PlotsFolder,varname,nt=0):
                 img_array.append(img)
     return img_array,nt
 
-def plotting_residuals(resvars,resnames,xvar,xvarname,path='',PlotsFolder=''):
-    '''Plots output variables from simulation and errors over time
-    :param vars: list of numpy variables over space and time
-    :param varnames: list of strings matching variable names
-    :param xvar: numpy variable matching thee third index of of the variables
-    :param xvarnam: The name of the dependence variable
-    :param domain: numpy array of the bounds for space [xmin,ymin,xmax,ymax]
-    :param PlotsFolder: string indicating the folder path where the plots should be save
-    '''
-    nt=len(xvar)
-    for j,va in enumerate(resvars):
-        vname=resnames[j]
-        line_plot(va,xvar,vname,xvarname,path,PlotsFolder)
-    return 1
-
-def main(path,filename,test=0,tp=1,ind=0):
-    ResultsFolder='/Plots'
-    MeshFolder  ='/Mesh'
+def Plot_tstep(var,tstep,dt,varname,savedir,vargs):
+    v0=vargs['min']
+    v1=vargs['max']
+    fig, axes = plt.subplots()
+    axes.set_aspect('equal')
+    colors = tripcolor(var, num_sample_points=1, axes=axes,cmap='inferno',vmin=v0,vmax=v1)
+    plt.title('Time = %.3f'%(tstep*dt))
+    fig.colorbar(colors)
+    fig.savefig(savedir+'/'+varname+ff.numfix(tstep)+'.jpg')
+    fig.clear()
+    plt.close()
+    return
+def Plotting(var_list,varname,path,PlotFoldername,parstr,consts_dict,vargs):
+    ''' Plot an animation of a tricontour plot for the variable `var_cls`.
+    Save plot at path+PlotFoldername+var_cls.name+'.mp4'
+    :param var_cls: `SpatialVariable` object with results in.
+    :param path: Location for the output
+    :param PlotFoldername: directory for the results.
+    :param consts_dict: dictionary of the parameters.'''
+    dt=consts_dict['dt']
+    tstep=0.0
+    savedir=path+PlotFoldername+parstr
+    Num_Plots=100
+    interval=int(len(var_list)/Num_Plots)
+    for var in var_list:
+        if tstep%interval==0:
+                Plot_tstep(var,tstep,dt,varname,savedir,vargs[varname])
+        tstep+=1.0
+    print('final t',tstep*dt)
+    return
+def iteration_plot(path,filename,test=0,tp=1,ind=0,simstep=1):
+    ResultsFolder='Plots'+ff.simstr(simstep)+'/'
+    MeshFolder  ='Mesh'+ff.simstr(simstep)+'/'
     dirlist=(ResultsFolder,MeshFolder)
     dlistout=list()
     for d in dirlist:
@@ -218,35 +165,62 @@ def main(path,filename,test=0,tp=1,ind=0):
     etaresname  ='eta_res'
     theresname  ='the_res'
     varnames=[etaname,thetaname,tname,domname,etaresname,theresname]
-    pars,pdes_pars=ff.read_inputs(path,filename,ind)
-    nx,ny,xm,ym,x0,y0=pars
+    pars_dict,pdes_pars_dict=ff.read_inputs(path,filename,ind)
+    nx=pars_dict['nx']
+    ny=pars_dict['ny']
+    xm=pars_dict['xm']
+    ym=pars_dict['ym']
+    x0=pars_dict['x0']
+    y0=pars_dict['y0']
     hx=(xm-x0)/nx
     hy=(ym-y0)/ny # mesh size
     # Parameters for the PDEs
-    _,_,_,_,_,_,_,_,_,dt,T,perm=pdes_pars
-    parstr=ff.par_string(ind,dt,T,perm,hx,hy)
-    print('Simulations completed, plotting results')
-    tvec=ff.load_file(path,MeshFolder+'/'+parstr,tname)
-    eta_res=ff.load_file(path,MeshFolder+'/'+parstr,etaresname)
-    line_plot(eta_res,tvec,etaresname,tname,path,ResultsFolder+'/'+parstr)
-    del eta_res
-    theta_res=ff.load_file(path,MeshFolder+'/'+parstr,theresname)
-    line_plot(theta_res,tvec,theresname,tname,path,ResultsFolder+'/'+parstr)
-    del theta_res
-    varnames=[etaname,thetaname]
-    plot_var_videos(tvec,varnames,path,MeshFolder+'/'+parstr,ResultsFolder+'/'+parstr,tp)
-    print('Plots saved in',path+ResultsFolder+'/'+parstr)
+    dt=pdes_pars_dict['dt']
+    T=pdes_pars_dict['T']
+    perm=pdes_pars_dict['perm']
+    A0=pdes_pars_dict['A0']
+    d=pdes_pars_dict['d']
+    eps=pdes_pars_dict['eps']
+    parstr=ff.par_string(ind,dt,T,perm,hx,hy,A0,d,eps)
+    tvec=ff.load_file(path,MeshFolder+parstr,tname)
+    varnames=[thetaname,etaname]
+    plot_var_videos(tvec,varnames,path,MeshFolder+parstr,ResultsFolder+parstr,tp)
+    print('Plots saved in',path+ResultsFolder+parstr)
     return 
+def main(path):
+    plot_diff_var(path)
+    return
+def get_ind(argv):
+    job=0 # default jobHeateqn t
+    if len(argv)>1:
+        job=int(argv[1])
+    return job
 
+def plot_diff_var(path):
+    filename=path+'/diffusion_range.csv'
+    plotname=path+'/ResVariance_vs_Diff.png'
+    df=pd.read_csv(filename)
+    d=np.array([df['d']])
+    var_e=np.array([df['var_e']])
+    var_t=np.array([df['var_t']])
+    plt.plot(d,var_e,'*',label='eta')
+    plt.plot(d,var_t,'*',label='theta')
+    plt.title('variance of residual')
+    plt.savefig(plotname)
+    return
+    
 
 if __name__=='__main__':
-    global DEBUG
+    #global DEBUG
     DEBUG=True
     path=os.path.abspath(os.getcwd())
+    main(path)
     sheetname    ='/ParameterSets.csv'
     test=0
-    tp  =0.5
-    ind =0
-    main(path,sheetname,test,tp,ind)
+    tp  =5
+    #ind =get_ind(sys.argv)
+    simstep=1
+    for ind in range(0,20):
+        iteration_plot(path,sheetname,test,tp,ind,simstep)
 
 
