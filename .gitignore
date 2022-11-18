@@ -3,6 +3,7 @@
 *.png
 *.avi
 # Mesh Files
+*.txt
 *.npy
 *.xdmf
 *.pvd
