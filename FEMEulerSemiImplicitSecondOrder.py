@@ -631,7 +631,7 @@ def get_ind(argv):
 
 if __name__=='__main__':
     ff.change_owner()
-    global DEBUG,macheps
+    global macheps
     DEBUG=True
     macheps=sys.float_info.epsilon
     path=os.path.abspath(os.getcwd())
