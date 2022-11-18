@@ -48,12 +48,12 @@ def create_par_set(path,filename):
             # All options for that key
             dictrow[k0]=datadict_range[k0][j]
             if i==0:
-                #checkvec=check_pars_from_row(dictrow,dictfixed)
-                #if not all(checkvec): 
-                #    print('Conditions not satified',checkvec)
-                #    print(dictrow)
-                #else:
-                #    print('Conditions satisfied')
+                checkvec=check_pars_from_row(dictrow,dictfixed)
+                if not all(checkvec): 
+                    print('Conditions not satified',checkvec)
+                    print(dictrow)
+                else:
+                    print('Conditions satisfied')
                     print(dictrow)
                     vallist=list(val for val in dictrow.values())
                     for val in dictfixed.values():
@@ -65,13 +65,13 @@ def create_par_set(path,filename):
                 k1=headerlabels[ik]
                 for jk in range(Nopts):
                     # All options for each previous key
-                        dictrow[k1]=datadict_range[k1][jk]
-                    #checkvec=check_pars_from_row(dictrow,dictfixed)
-                    #if not all(checkvec): 
-                    #    print('Conditions not satified',checkvec)
-                    #    print(dictrow)
-                    #else:
-                    #    print('Conditions satisfied')
+                    dictrow[k1]=datadict_range[k1][jk]
+                    checkvec=check_pars_from_row(dictrow,dictfixed)
+                    if not all(checkvec): 
+                        print('Conditions not satified',checkvec)
+                        print(dictrow)
+                    else:
+                        print('Conditions satisfied')
                         print(dictrow)
                         vallist=list(val for val in dictrow.values())
                         for val in dictfixed.values():
@@ -82,7 +82,8 @@ def create_par_set(path,filename):
     return 
 def check_pars_from_row(dictrow,dictfixed):
     # PDE parameters
-    eps =dictrow['epsilon']
+    #print(dictrow.keys())
+    eps =dictfixed['epsilon']
     if eps>=np.log(2) or eps<0:
         print('invalid eps',eps)
         return [False,False,False,False]     
@@ -95,13 +96,14 @@ def check_pars_from_row(dictrow,dictfixed):
     #d2=(-b/a)
     #d=1.1*max(d1,d2)
     #d=max(d1,d2)
+    df  =dictrow['df']
     f   =dictrow['A0f']
     #A0=dictfixed['A0']
-    sig=dictrow['sig']
+    sig=dictfixed['sig']
     #sig=ff.calc_sig(eps,b0)
     alph=ff.calc_alpha(a0,b0,eps)
     A0=ff.calc_A0(rho,sig,a0,b0,eps,f)
-    d=ff.calc_d(rho,sig,a0,b0,eps,A0)
+    d=ff.calc_d(rho,sig,a0,b0,eps,A0,df)
     # alp=(a0*(eps+1)+b0*eps**2)/(eps*(eps+1))
     # mul=rho*(eps**2)/(sig*np.exp(alp)*((eps+1)**3))
     # ln2=np.log(2)
@@ -132,7 +134,8 @@ def check_pars_from_row(dictrow,dictfixed):
     ge=ff.g_eta(e,t,(A0,a0,b0,A1,a1,b1))  
     J=np.array([[rho*fe,rho*ft],[sig*ge,sig*gt]])
     D=np.array([[1,0],[0,d]])
-    print('Eigen vals',np.linalg.eig(J+D))
+    print('Eigen vals of J+D',np.linalg.eig(J+D))
+    print('Eigen vals of J',np.linalg.eig(J))
     cond=check_instab_cond(StSt,A0,a0,b0,eps,d)
     return cond
 
