@@ -3,7 +3,6 @@
 # Packages for runningfiredrake
 import firedrake
 from firedrake import *
-import ufl
 # Packages for loading data
 import pandas as pd
 import FileFuncs as ff
@@ -86,7 +85,7 @@ def linear_form_func(varkey,var_cls,othervar_cls,testvar,consts_dict,test=0):
     if varkey=='t':
         L=(dt*sig*g_func(initvar,othervar,consts_dict,test)*testvar
            +divterm)
-    return L*ufl.dx
+    return L.dx
 
 def bilinear_form_func(varkey,tmpvar,testvar,consts_dict,test=0):
     ''' bilinear form for variational problem.
@@ -120,7 +119,7 @@ def bilinear_form_func(varkey,tmpvar,testvar,consts_dict,test=0):
     elif varkey=='t':
         d=consts_dict['d_t']
     D=Constant(d*al)#D  =fem.Constant(r_mesh, PETSc.ScalarType(d))
-    a1=D*dt*inner(grad(tmpvar),grad(testvar))*ufl.dx +tmpvar*testvar*ufl.dx  
+    a1=D*dt*inner(grad(tmpvar),grad(testvar)).dx +tmpvar*testvar.dx  
     return a1
 
 def convert_vec_to_array(vec,nx,ny):
