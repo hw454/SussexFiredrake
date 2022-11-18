@@ -8,7 +8,7 @@ import numpy as np
 import GenerateParameterSets as gp
 import sys
 import num2words as nw
-macheps=sys.float_info.epsilon
+
 
 def check_folder(path,dirname):
     if not os.path.isdir(path+dirname):
@@ -38,10 +38,16 @@ def save_var(var,varname,path,foldername,typ='.npy'):
     print('Save var at'+filename)
     np.save(filename,var)
     return
+def set_variance_in_csv(d,A0,samp_var,csvname):
+    return 
 def teststr(test):
     if test==0:return '/Both/'
     elif test==1: return '/DiffusionOnly/'
     elif test==2: return '/SourceOnly/'
+    else: return ''
+def simstr(simstep):
+    if simstep==1:return 'FirstOrder'
+    elif simstep==2: return 'SecondOrder'
     else: return ''
 
 def load_file(path,dirname,fname,typ='.npy'):
@@ -103,7 +109,9 @@ def read_inputs(path,filename,ind=0,sims=0,parfile='/parameters'):
     a0  =inputdata['a0'][ind]
     b0  =inputdata['b0'][ind]
     T   =inputdata['T'][ind]
-    perm=inputdata['perm'][ind]
+    permeta=inputdata['permeta'][ind]
+    permthe=inputdata['permtheta'][ind]
+    perm=[permeta,permthe]
     A0f=inputdata['A0f'][ind]
     df=inputdata['df'][ind]
     dtf=inputdata['dtf'][ind]
@@ -115,17 +123,19 @@ def read_inputs(path,filename,ind=0,sims=0,parfile='/parameters'):
     #sig=calc_sig(eps,b0)
     A0=calc_A0(rho,sig,a0,b0,eps,A0f)
     print('A0f: ',A0f,' A0: ',A0)
-    d=calc_d(rho,sig,a0,b0,eps,A0,df)
-    print('df: ',df,' d:',d)
+    d_e=1.0
+    d_t=calc_d(rho,sig,a0,b0,eps,A0,df)
+    save_d(d_t/d_e,A0,path)
+    print('df: ',df,' d_t:',d_t)
     hx=(xm-x0)/nx
     hy=(ym-y0)/ny
     h=min(hx,hy)
     dt=dtf*h**2/3
     pde_dict={'StSt': StSt, 'tol':tol,'eps':eps,'rho':rho,
-    'sig':sig,'a0':a0,'b0':b0,'A0':A0,'d':d,'dt':dt,'T':T,'perm':perm}
-    gp.check_instab_cond(StSt,A0,a0,b0,eps,d)
+    'sig':sig,'a0':a0,'b0':b0,'A0':A0,'d_e':d_e,'d_t':d_t,'dt':dt,'T':T,'perm':perm}
+    gp.check_instab_cond(StSt,A0,a0,b0,eps,d_t)
     check_folder(path,parfile)
-    parfile+='/'+par_string(ind,dt,T,perm,hx,hy,A0,d,eps)
+    parfile+='/'+par_string(ind,pde_dict)
     check_folder(path,parfile)
     if sims:
         with open(parfile+"/parameters.txt", 'w') as f: 
@@ -165,6 +175,31 @@ def calc_d(rho,sig,a0,b0,eps,A0,df):
     d2=sig/(rho*(re**2))
     d=df*d1*d2
     return d
+def save_d(d,A0,path):
+    filename=path+'/diffusion_range.csv'
+    try: 
+        d_arr=pd.read_csv(filename)
+        if d not in d_arr['d']:
+            df2={'d':d,'A0':A0,'var_e':0,'var_t':0}
+            df=pd.concat([d_arr,df2],names=fullheader,ignore_index=True)
+    except: 
+        d_arr={'d':[d],'A0':[A0],'var_e':[0],'var_t':[0]}
+    df=pd.DataFrame.from_dict(d_arr)
+    df.to_csv(filename,index=True)
+    return
+def add_var_to_d(d,A0,var_e,var_t,path):
+    filename=path+'/diffusion_range.csv'
+    try: 
+        d_arr=pd.read_csv(filename)
+        d_arr[d_arr['d']==d,'var_e']=var_e
+        d_arr[d_arr['d']==d,'var_t']=var_t
+        d_dict={'d':d_arr['d'],'A0':d_arr['A0'],'var_e':d_arr['var_e'],'var_t':d_arr['var_t']}
+    except: 
+        print('d was not in pre calculated range')
+        d_dict={'d':[d],'A0':[A0],'var_e':[var_e],'var_t':[var_t]}
+    df=pd.DataFrame.from_dict(d_dict)
+    df.to_csv(filename,index=True,header=True)
+    return
 def K(e,t,A,a,b):
     return A*np.exp(a*e+b*t)
 def f_theta(e,t,eps):
@@ -186,9 +221,19 @@ def numfix(j):
     if j>=1:    return '%04d'%j
     else:    return '%04d'%(1000*j)
 
-def par_string(ind,dt,T,perm,hx,hy,A0,d,eps):
+def par_string(ind,pde_dict):
     '''Generate string for appending to folder name. '''
-    return 'ind'+numfix(ind)+'dt'+numfix(dt)+'_T'+numfix(T)+'_perm'+numfix(perm)+'_h'+numfix(min(hx,hy))+'_A0'+numfix(A0)+'_d'+numfix(d)+'_eps'+numfix(eps)
+    dt=pde_dict['dt']
+    T=pde_dict['T']
+    perm=pde_dict['perm']
+    A0=pde_dict['A0']
+    de=pde_dict['d_e']
+    dth=pde_dict['d_t']
+    eps=pde_dict['eps']
+    s1='ind'+numfix(ind)+'dt'+numfix(dt)+'_T'+numfix(T)
+    s2='_perm_e'+numfix(perm[0])+'_t'+numfix(perm[1])
+    s3='_A0'+numfix(A0)+'_de'+numfix(de)+'_dth'+numfix(dth)+'_eps'+numfix(eps)
+    return s1+s2+s3
 def change_owner():
     gid=os.getgid()
     uid=1000
@@ -197,6 +242,8 @@ def change_owner():
     return
 
 if __name__=='__main__':
+    global macheps
+    macheps=macheps=sys.float_info.epsilon
     path=os.path.abspath(os.getcwd())
     sheetname='/ParameterSets.csv'
     ind=0
