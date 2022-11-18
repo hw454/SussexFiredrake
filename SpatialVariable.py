@@ -32,7 +32,7 @@ class spatial_variable:
         rstr+=' Function Value '+s.print_var_vals()
         return rstr
     def update_var(s,cls_2):
-        s.var.assign(cls_2.var)
+        s.var.assign(cls_2.var.copy(deepcopy=True))
         s.var_hist.append(cls_2.var.copy(deepcopy=True))
         return
     def reset_var(s):
@@ -40,36 +40,24 @@ class spatial_variable:
         return s.var
     def initialise(s,Steady,permval,hx,hy,char='n'):
         #perm and StSt must be declared as global
-        global StSt,perm
+        global StSt,perm_e,perm_t
         StSt=Steady
-        perm=permval
+        perm_e,perm_t=permval
         x, y = SpatialCoordinate(s.mesh)
         if char=='n':
             print('Character key not input so using class key',s.char_key)
             char=s.char_key
+        #perm=0
         if char=='e':
-            s.var.interpolate(StSt[0]+perm*(sin(pi*x/(2*hx))+sin(pi*y/(2*hy))))
+            s.var.interpolate(StSt[0]+0.005*perm_e*(cos(x)+cos(y)))
         elif char=='t':
-            s.var.interpolate(StSt[1]+perm*(sin(pi*x/(2*hx))+sin(pi*y/(2*hy))))
+            s.var.interpolate(StSt[1]+0.005*perm_t*(cos(x)+cos(y)))
         else:
             print('No initial func for character key')
             s.var.interpolate(np.exp(-5*(x[0]**2+x[1]**2)))
-        s.init_var.assign(s.var)
+        s.init_var.assign(s.var.copy(deepcopy=True))
         s.var_hist.append(s.init_var.copy(deepcopy=True))
         return s.var
         
-
-def rand_scal_eta(x):
-    return (StSt[0]+perm*(np.random.rand()-np.random.rand()))*x/x
-def rand_scal_theta(x):
-    return (StSt[1]+perm*(np.random.rand()-np.random.rand()))*x/x
-def Initial_eta_func(out):
-    #perm and StSt must be declared as global
-    out.interpolate(rand_scal_eta)
-    return out
-def Initial_theta_func(out):
-    #perm and StSt must be declared as global
-    out.interpolate(rand_scal_theta)
-    return out
 def initial_func(x, a=5):
     return np.exp(-a*(x[0]**2+x[1]**2))
