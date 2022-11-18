@@ -3,10 +3,13 @@
 
 
 # Packages for loading data
+import sys
 import pandas as pd
 import cv2
 import os
 import FileFuncs as ff
+import imageio
+import num2words as nw
 
 
 # Packages for managing data
@@ -18,7 +21,7 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 
 
-def plot_animation(nt,varname='var',ResultsFolder='',tp=1):
+def plot_animation(nt,varname='var',ResultsFolder='',tp=0.25):
     ''' Plotting sequence of heatmaps for a variable `var' and create animation.
     :param domain: numpy array containing the measurements for the envrionment [xmin,ymin,xmax,ymax]
     :param var: numpy array containing variable values
@@ -32,32 +35,18 @@ def plot_animation(nt,varname='var',ResultsFolder='',tp=1):
     if not os.path.exists(ResultsFolder):
         os.makedirs(ResultsFolder)
     filename=ResultsFolder+'/'+varname
-    img_array=[]
-    for j in range(nt):
-        if j>0:
+    with imageio.get_writer(filename+'.gif', mode='I',duration=0.25) as writer:
+        for j in range(nt):
             filesave=filename+ff.numfix(j)+'.png'
-            #tstring=varname+'(x,y), time {:.2f}'.format(tstep)
-            #sns.heatmap(var[:,:,j],vmin=varmin,vmax=varmax).set(title=tstring)
-            #im = plt.imshow(var[:,:,j],vmin=varmin,vmax=varmax)
-            #im.title(tstring)
-            #plt.savefig(filesave)
-            #plt.close('all')
             if not os.path.exists(filesave):
                 print('No file',filesave)
                 img=None
-            else: img = cv2.imread(filesave)
+            else: img = imageio.imread(filesave)
             if isinstance(img,type(None)):
                 pass
             else:
-                height, width, layers = img.shape
-                size = (width,height)
-                img_array.append(img)
-    out = cv2.VideoWriter(filename+'00.avi',cv2.VideoWriter_fourcc(*'DIVX'), tp, size)
-    for j in range(len(img_array)):
-        out.write(img_array[j])
-    out.release()
-    print('Video at',filename+'00.avi')
-    del img_array
+                writer.append_data(img)
+    print('Video at',filename+'.gif')
     return
 
 
@@ -80,7 +69,6 @@ def line_plot(f,t,varname,tname,ResultsFolder=''):
 
 def plotting(xvar,varnames,ResultsFolder='',tp=1):
     '''Plots output variables from simulation and errors over time
-    #FIXME-time plots need to be added
     :param var 3: numpy variable for x-axos(or similar dimensional variable)
     :param varnames: list of names corresponding to variables to plot
     :param ResultsFolder: string indicating the folder path where the plots should be save
@@ -90,7 +78,7 @@ def plotting(xvar,varnames,ResultsFolder='',tp=1):
     return
 
 
-def main(filename,test=0,tp=1):
+def main(path,filename,test=0,tp=1,ind=0,simstep=1):
     '''Runs the simulations and plotting functions.
     Ouputs from the simulation are saved as numpy variables. These are then loaded before plotting.
     :param filename: The name of the file containing the input parameters
@@ -100,48 +88,72 @@ def main(filename,test=0,tp=1):
     Uses functions :py:func:`Simulations(filename,MeshFolder,ResultsFolder,varnames,test)' and :py:func:`plotting(var1,var2,time,foldername)'
     :returns: nothing
     '''
-    ResultsFolder='Plots'
-    MeshFolder  ='Mesh'
-    if test==1:
-        ResultsFolder='./DiffusionOnly/'+ResultsFolder
-        MeshFolder   ='./DiffusionOnly/'+MeshFolder
+    ResultsFolder='Plots'+ff.simstr(simstep)+'/'
+    MeshFolder  ='Mesh'+ff.simstr(simstep)+'/'
     dirlist=(ResultsFolder,MeshFolder)
+    dlistout=list()
+    for d in dirlist:
+        dlistout.append(ff.teststr(test)+d)
     etaname     ='eta'
     thetaname   ='theta'
     tname       ='tvec'
     domname     ='boundaries'
     etaresname  ='eta_res'
     theresname  ='the_res'
-    varnames=[etaname,thetaname,tname,domname,etaresname,theresname]
-    pars,pdes_pars=ff.read_inputs(filename)
-    nx,ny,xm,ym,x0,y0=pars
+    etadivname  ='eta_div'
+    thedivname  ='the_div'
+    varnames=[etaname,thetaname,tname,domname,etaresname,theresname,etadivname,thedivname]
+    mesh_par_dict,pdes_par_dict=ff.read_inputs(path,filename,ind,0)
+    nx=mesh_par_dict['nx']
+    ny=mesh_par_dict['ny']
+    xm=mesh_par_dict['xm']
+    ym=mesh_par_dict['ym']
+    x0=mesh_par_dict['x0']
+    y0=mesh_par_dict['y0']
     hx=(xm-x0)/nx
     hy=(ym-y0)/ny # mesh size
     # Parameters for the PDEs
-    _,_,_,_,_,_,_,_,_,dt,T,perm=pdes_pars
-    parstr=ff.par_string(dt,T,perm,hx,hy)
-    print('Mesh folder',MeshFolder+'/'+parstr)
-    tvec=ff.load_file(MeshFolder+'/'+parstr,tname)
-    eta_res=ff.load_file(MeshFolder+'/'+parstr,etaresname)
-    line_plot(eta_res,tvec,etaresname,tname,ResultsFolder+parstr)
-    del eta_res
-    theta_res=ff.load_file(MeshFolder+'/'+parstr,theresname)
-    line_plot(theta_res,tvec,theresname,tname,ResultsFolder+parstr)
-    del theta_res
+    global StSt, perm
+    StSt=pdes_par_dict['StSt']
+    eps=pdes_par_dict['eps']
+    A0=pdes_par_dict['A0']
+    d=pdes_par_dict['d']
+    dt=pdes_par_dict['dt']
+    T=pdes_par_dict['T']
+    perm=pdes_par_dict['perm']
+    parstr=ff.par_string(ind,dt,T,perm,hx,hy,A0,d,eps)
+    ff.check_folder(path,ResultsFolder)
+    ff.check_folder(path,MeshFolder)
+    MeshFolder=MeshFolder+'/'+parstr
+    ResultsFolder=ResultsFolder+'/'+parstr
+    ff.check_folder(path,ResultsFolder)
+    ff.check_folder(path,MeshFolder)
+    print('Mesh folder',MeshFolder)
+    tvec=ff.load_file(path,MeshFolder,tname)
     varnames=[etaname,thetaname]
-    plotting(tvec,varnames,ResultsFolder+'/'+parstr,tp)
-    print('Plots saved in',ResultsFolder+'/'+parstr)
+    plotting(tvec,varnames,ResultsFolder,tp)
+    print('Plots saved in',ResultsFolder)
     return
 
+def get_ind(argv):
+    job=0 # default job
+    if len(argv)>1:
+        job=int(argv[1])
+    return job
 
 
 if __name__=='__main__':
     global DEBUG
     DEBUG=True
-    filename='Inputs.csv'
-    heateqn=0
-    tp=0.25
-    main(filename,heateqn,tp)
+    path=os.path.abspath(os.getcwd())
+    filename='ParameterSets.csv'
+    testlist=(0,1,2)
+    tp=4
+    path='./'
+    simstep=1
+    ind=get_ind(sys.argv)  
+    for test in testlist:
+        main(path,filename,test,tp,ind,simstep)
     exit()
 
 
